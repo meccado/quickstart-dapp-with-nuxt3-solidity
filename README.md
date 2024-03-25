@@ -1,10 +1,51 @@
 ## CREATING "BUY ME COFFEE" SMART CONTRACT
 #### _**Using Solidity, Hardhat & Nuxt 3**_
 
-### Use Existing Project:
+### Languages:
+- [{ solidity } - for developing smart contracts](https://soliditylang.org/)
+- [{ NUXT3} - Javascript vue framework](https://nuxt.com/)
+
+### USE EXISTING PROJECT:
+
+```ts
+git clone git@github.com:meccado/quickstart-dapp-with-nuxt3-solidity.git [your-project-name]
+cd [your-project-name]
+
+// # remove remote  origin if you already have a repo setup
+git remote rm origin
+```
+
+#### **Start Harthat Blockchain & deploy contract**
+```ts
+// # install dependencies
+npm i
+pnpm i
+
+// # Run contract on Local hardhat blockchain
+pnpm hardhat node
+npm hardhat node
+
+// # deploy contract
+pnpm hardhat  run scripts/deploy.ts --network localhost
+pnpm hardhat  run scripts/deploy.ts --network localhost
+```
+
+#### **Start Nuxt UI
+```ts
+// # Start UI
+cd  ui
+
+// # install dependencies
+npm i
+pnpm i
+
+// # Start  applicarion
+npm run dev
+pnpm run dev
+```
 
 
-### Creating Project From Scratch:
+### MANUALLY CREATE YOUR OWN PROJECT
 
 ### STEP: 1 - Working with Smart Contracts in the Ethereum
 
@@ -278,71 +319,129 @@ pnpm i -D ethers
 // # Create Nuxt plugin to  handle the Ethers.js instance globally
 mkdir plugins && touch plugins/ethers.client.ts
 
-import { ethers } from 'ethers'
-import { ref } from 'vue'
+import { ethers } from "ethers";
+import { ref } from "vue"
 
 export default defineNuxtPlugin((nuxtApp) => {
-  const provider = ref<any>()
-  const signer = ref<any>()
 
-  if (process.client) {
-    // Checking if user has metamask installed and is connected.
-    const checkMetamask = async () => {
-      // Create a new provider
-      const providerOptions = window['ethereum']
-      if (!providerOptions || !providerOptions.isMetaMask) return false
+    const provider = ref(null)
+    const currentAccount  = ref('')
+    const { ethereum } = window as any
 
-      // Set Provider
-      provider.value = new providers.Web3Provider(window['ethereum'], 'any')
+    ethereum.on('accountsChanged', async () => {
+        const accounts = await ethereum.request({ method: 'eth_requestAccounts'})
+        let account =  await ethers.getAddress(accounts[0])
+        //let account =  await ethers.utils.getAddress(accounts[0])
+        console.log("Account changed to ", account);
+        currentAccount.value = account
+     })
 
-      // Get Signer
-      try {
-        signer.value = await provider.value!.getSigner()
-      } catch (error) {
-        console.log('Error getting Metamask account: ', error)
-      }
+    const checkIfWalletExists = async () => {
+        try {
 
-      return true
+            if (ethereum && ethereum.isMetaMask) {
+                provider.value = ethereum
+                console.log("Metamask is installed")
+                return true
+            } else {
+                console.log('Metamask is not installed')
+                return false
+            }
+        } catch (e) {
+            console.error("Oops, something went wrong! ", e)
+            return false
+        }
     }
 
-    nuxtApp.provide('checkMetamask', checkMetamask)
-    nuxtApp.provide('signer', signer)
-    nuxtApp.provide('provider', provider)
-  } else {
-    // Server-side setup of provider using Infura as RPC endpoint.
-    provider.value = new providers.JsonRpcProvider('https://rpc-mainnet.maticvigil.com/')
-  }
+    const connectWallet = async () => {
+        try {
+            // Check if Meta Mask is installed
+            if (!await checkIfWalletExists()) return;
+
+            // Ask user to connect to Meta Mask
+            const accounts = await provider.value?.request({ method: "eth_requestAccounts" });
+  
+            if (accounts == null || accounts.length === 0) {
+                throw new Error("No connected accounts found");
+            }
+            let account = await ethers.getAddress(accounts[0])
+            //let account =  await new ethers.utils.getAddress(accounts[0])
+            currentAccount.value = account;
+        } catch (ex) {
+            console.log("Failed to connect", ex);
+        }
+    };
+
+    nuxtApp.provide('ethers', {
+        ...ethers,
+        provider,
+        currentAccount,
+        checkIfWalletExists,
+        connectWallet
+    })
 })
+```
 
+#### Create Nuxt plugin to  handle the Ethers.js instance globally
+```ts
+mkdir composables && touch composables/useEthers.client.ts
 
+import { useNuxtApp } from "#app"
+
+export const useEthers = () => {
+  const nuxtApp  = useNuxtApp()
+  return nuxtApp.$ethers
+}
 ```
 
 ### Interact with the contract
 ```ts
 import { ethers } from 'ethers'
+import BuyMeCoffeeJson from '../artifacts/contracts/BuyMeCoffee.sol/BuyMeCoffee.json';
+const abi = BuyMeCoffeeJson.abi;
+const config =  await useRuntimeConfig()
+const { provider, currentAccount, checkIfWalletExists, connectWallet } = useEthers()
 
-const contractAddress = 0x...
-const contractABI = []
-const { ethereum } = window;  
-const provider  = await new ethers.providers.Web3Provider(ethereum);
-let signer = await provider.getSigner();
-const buyMeCoffee = await new ethers.Contract(contractAddress, contractABI , signer)
-```
+let _provider: any  = null
+let buyMeCoffee: any = null
 
-```ts 
-// # Configure Alchemy Mumbai Provider with ethers
-import contract from '../artifact/contracts/BuyMeCoffee.json'
-const [ALCHEMY_API_KEY, PRIVATE_KEY, CONTRACT_ADDRESS] = process.env
-const main = async () => {
-  const alchemy = await hre.ethers.providers.AlchemyProvider( 'maticmum', ALCHEMY_API_KEY );
-  const wallet = await  hre.ethers.Wallet(PRIVATE_KEY , alchemy);
-  const BuyMeCoffee = await hre.ethers.Contract(CONTRACT_ADDRESS , contract.abi, wallet);
+watch([currentAccount, _provider], async () => {
+  if (!currentAccount.value || !_provider){
+     buyMeCoffee = await BuyMeCoffee()
+    //await BuyMeCoffee()
+  }
+},{ deep: true})
+  
+// # Initialize contract  
+const BuyMeCoffee = async () => {
+ try {
+      _provider = new ethers.BrowserProvider(window.ethereum)
+      return new ethers.Contract(
+        config.public.contractAddress,
+        abi,
+        _provider
+      )
+    } catch(e){
+        console.error('Failed to load contract >>', e);
+    }
 }
 
-main()
-.then(() => process.exit(0))
-.catch((error) => {
-    console.error(error)
-    process.exit(1)
-})
+const buy = async () => {
+  console.log("Current Account >>>> ", currentAccount.value)
+  try {
+    if (!currentAccount?.value || !await checkIfWalletExists()) {
+      arlet("First Connect Wallet!")
+      return
+    } else {
+      let signer = await _provider.getSigner()
+      let overrides = {
+        value: ethers.parseUnits('1.0', 'ether'),
+      }
+      const tx = await buyMeCoffee.connect(signer).buy(overrides);
+      await tx.wait();
+    }
+  } catch (err) {
+    console.log('Error!', err)
+  }
+};
 ```
