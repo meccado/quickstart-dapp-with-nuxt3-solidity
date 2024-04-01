@@ -5,6 +5,13 @@
 - [{ solidity } - for developing smart contracts](https://soliditylang.org/)
 - [{ NUXT3} - Javascript vue framework](https://nuxt.com/)
 
+## **BUY ME COFFE DAPP - WEBSITE VIEW**
+![Image](https://github.com/meccado/quickstart-dapp-with-nuxt3-solidity/assets/8968908/38e7648c-05a8-4240-9b4c-37c5d2076bf5)
+
+
+## **BUY ME COFFE DAPP - MOBILE VIEW**
+![Image](https://github.com/meccado/quickstart-dapp-with-nuxt3-solidity/assets/8968908/34db6e9b-f80a-497d-bc6d-cab7bbd1124b)
+
 ### USE EXISTING PROJECT:
 
 ```ts
